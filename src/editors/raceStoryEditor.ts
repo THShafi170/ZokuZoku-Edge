@@ -40,8 +40,6 @@ export class RaceStoryEditorProvider extends EditorBase implements vscode.Custom
                 exists: content !== null
             });
         });
-        this.disposables.push(json);
-
         const initReadPromise = json.readTextDocument().catch(_ => { });
         json.watchTextDocument(document);
         function getDictProperty(id: TreeNodeId): jsonToAst.ValueNode | undefined {
@@ -58,9 +56,10 @@ export class RaceStoryEditorProvider extends EditorBase implements vscode.Custom
 
         // Init webview
         const assetInfo = RaceStoryEditorProvider.parseFilename(document.uri);
-        this.setupWebview(webviewPanel, [
+        const panelDisposables = this.setupWebview(webviewPanel, [
             vscode.Uri.file(assetInfo.voiceCacheDir)
         ]);
+        panelDisposables.push(json);
 
         // Messaging setup
         function postMessage(message: ControllerMessage) {
@@ -70,7 +69,7 @@ export class RaceStoryEditorProvider extends EditorBase implements vscode.Custom
         let prevEditPromise = Promise.resolve();
         const nodesPromise = RaceStoryEditorProvider.generateNodes(assetInfo);
         let loadVoicePromise: Promise<{ [key: string]: string }> | undefined;
-        webviewPanel.webview.onDidReceiveMessage(async (message: EditorMessage) => {
+        panelDisposables.push(webviewPanel.webview.onDidReceiveMessage(async (message: EditorMessage) => {
             switch (message.type) {
                 case "init":
                     postMessage({ type: "setExplorerTitle", title: vscode.l10n.t("Race Story") });
@@ -162,10 +161,10 @@ export class RaceStoryEditorProvider extends EditorBase implements vscode.Custom
                         .catch(e => vscode.window.showErrorMessage("" + e));
                     break;
             }
-        });
+        }));
 
         // Always try to clean up voice cache, regardless if voice was loaded in *this session*
-        this.disposables.push(new vscode.Disposable(() => {
+        panelDisposables.push(new vscode.Disposable(() => {
             return fs.rm(assetInfo.voiceCacheDir, { recursive: true, force: true });
         }));
     }

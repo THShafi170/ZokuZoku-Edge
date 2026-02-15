@@ -91,7 +91,8 @@ export class MdbEditorProvider extends EditorBase implements vscode.CustomTextEd
         }
         
         // Init webview
-        this.setupWebview(webviewPanel);
+        const panelDisposables = this.setupWebview(webviewPanel);
+        panelDisposables.push(json);
 
         // Messaging setup
         function postMessage(message: ControllerMessage) {
@@ -100,7 +101,7 @@ export class MdbEditorProvider extends EditorBase implements vscode.CustomTextEd
 
         let prevEditPromise = Promise.resolve();
         const dataPromise = MdbEditorProvider.generateData(tableName);
-        webviewPanel.webview.onDidReceiveMessage(async (message: EditorMessage) => {
+        panelDisposables.push(webviewPanel.webview.onDidReceiveMessage(async (message: EditorMessage) => {
             let data: InitData;
             try {
                 data = await dataPromise;
@@ -235,7 +236,7 @@ export class MdbEditorProvider extends EditorBase implements vscode.CustomTextEd
                     }
                     break;
             }
-        });
+        }));
     }
 
     static nextTableName: MdbTableName | undefined;

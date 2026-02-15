@@ -75,7 +75,8 @@ export class LocalizeDictEditorProvider
                 : valueNode.value;
         }
 
-        this.setupWebview(webviewPanel);
+        const panelDisposables = this.setupWebview(webviewPanel);
+        panelDisposables.push(json);
 
         function postMessage(message: ControllerMessage) {
             webviewPanel.webview.postMessage(message);
@@ -84,7 +85,7 @@ export class LocalizeDictEditorProvider
         let prevEditPromise: Promise<void> = Promise.resolve();
         const nodesPromise = LocalizeDictEditorProvider.generateNodes();
 
-        webviewPanel.webview.onDidReceiveMessage(
+        panelDisposables.push(webviewPanel.webview.onDidReceiveMessage(
             (message: EditorMessage) => {
                 switch (message.type) {
                     case 'init': {
@@ -157,7 +158,7 @@ export class LocalizeDictEditorProvider
                         break;
                     }
                 }
-            });
+            }));
         }
 
     static async generateNodes(): Promise<ITreeNode[]> {

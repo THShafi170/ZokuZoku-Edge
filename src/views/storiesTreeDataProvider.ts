@@ -51,27 +51,7 @@ const categoryNames: {[key: string]: string} = {
     "83": vscode.l10n.t("> Support Card Events (SSR)")
 };
 
-async function getGroupName(categoryId: string, groupId: string): Promise<string | undefined> {
-    switch (+categoryId) {
-        case 4:
-        case 50: {
-            const characterNames = await utils.getTextDataCategoryCached(6);
-            return characterNames[+groupId];
-        }
-        case 40:
-            return (await utils.getTextDataCategory(119))[+groupId]?.replaceAll("\\n", " ");
-    }
-}
 
-async function getStoryName(categoryId: string, storyId: string) {
-    switch (+categoryId) {
-        case 4:
-            return (await utils.getTextDataCategory(92))[+storyId];
-    }
-
-    // Training events span across multiple categories
-    return (await utils.getTextDataCategoryCached(181))[+storyId];
-}
 
 export default class StoriesTreeDataProvider extends RefreshableTreeDataProviderBase implements vscode.TreeDataProvider<vscode.TreeItem> {
     private static _instance?: StoriesTreeDataProvider;
@@ -194,12 +174,12 @@ export default class StoriesTreeDataProvider extends RefreshableTreeDataProvider
 
                         const dictPath = await ldManager.getPathUri("assets_dir", undefined,
                             "story", "data", categoryId, groupId, `storytimeline_${storyId}.json`);
-                        const hasContent = await utils.hasTranslatedContent(dictPath);
+                        const status = await utils.getEntryStatus(dictPath);
 
                         items.push({
                             id: itemId,
                             tooltip: itemId,
-                            label: utils.makeActiveStatusLabel(label, hasContent),
+                            label: utils.makeStatusLabel(label, status),
                             command: {
                                 title: "ZokuZoku: Open story editor",
                                 command: "zokuzoku.openStoryEditor",

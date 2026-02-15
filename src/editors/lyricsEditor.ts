@@ -36,8 +36,6 @@ export class LyricsEditorProvider extends EditorBase implements vscode.CustomTex
                 exists: content !== null
             });
         });
-        this.disposables.push(json);
-
         const initReadPromise = json.readTextDocument().catch(_ => {});
         json.watchTextDocument(document);
         function getDictProperty(id: TreeNodeId): jsonToAst.PropertyNode | undefined {
@@ -52,7 +50,8 @@ export class LyricsEditorProvider extends EditorBase implements vscode.CustomTex
         }
         
         // Init webview
-        this.setupWebview(webviewPanel);
+        const panelDisposables = this.setupWebview(webviewPanel);
+        panelDisposables.push(json);
 
         // Messaging setup
         function postMessage(message: ControllerMessage) {
@@ -61,7 +60,7 @@ export class LyricsEditorProvider extends EditorBase implements vscode.CustomTex
 
         let prevEditPromise = Promise.resolve();
         const nodesPromise = LyricsEditorProvider.generateNodes(document.uri);
-        webviewPanel.webview.onDidReceiveMessage((message: EditorMessage) => {
+        panelDisposables.push(webviewPanel.webview.onDidReceiveMessage((message: EditorMessage) => {
             switch (message.type) {
                 case "init":
                     postMessage({
@@ -122,7 +121,7 @@ export class LyricsEditorProvider extends EditorBase implements vscode.CustomTex
                     break;
                 }
             }
-        });
+        }));
     }
 
     static async generateNodes(uri: vscode.Uri): Promise<ITreeNode[]> {

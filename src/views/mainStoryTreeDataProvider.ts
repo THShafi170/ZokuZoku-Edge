@@ -171,7 +171,7 @@ export default class MainStoriesTreeDataProvider extends RefreshableTreeDataProv
 
                             default: continue;
                         }
-                        const hasContent = await utils.hasTranslatedContent(dictPath);
+                        const status = await utils.getEntryStatus(dictPath);
 
                         noTranslatables = false;
 
@@ -179,7 +179,7 @@ export default class MainStoriesTreeDataProvider extends RefreshableTreeDataProv
                         items.push({
                             id: itemId,
                             tooltip: itemId,
-                            label: utils.makeActiveStatusLabel(`Part ${(i / 2) + 1}`, hasContent),
+                            label: utils.makeStatusLabel(`Part ${(i / 2) + 1}`, status),
                             iconPath: new vscode.ThemeIcon(iconId),
                             command
                         });

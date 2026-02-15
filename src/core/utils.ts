@@ -9,6 +9,12 @@ import config from '../config';
 import { STEAM_APP_ID_GLOBAL, STEAM_APP_ID_JP } from '../defines';
 import { LocalizedDataManager } from './localizedDataManager';
 
+export enum EntryStatus {
+    Missing,
+    Ghost,
+    Translated
+}
+
 export function addIndent(source: string, indent: string, addAtStart = false): string {
     if (indent.length) {
         let res = addAtStart ? indent : "";
@@ -96,12 +102,14 @@ export async function pathExists(path: PathLike): Promise<boolean> {
 }
 
 /**
- * Check if a story timeline file has translated content.
- * Returns true if the file exists and has at least one non-empty text field.
+ * Check the translation status of a file.
+ * Returns EntryStatus.Missing if file doesn't exist.
+ * Returns EntryStatus.Ghost if file exists but has no translated content.
+ * Returns EntryStatus.Translated if file has actual translated content.
  */
-export async function hasTranslatedContent(uri: vscode.Uri | undefined): Promise<boolean> {
+export async function getEntryStatus(uri: vscode.Uri | undefined): Promise<EntryStatus> {
     if (!uri || !await uriExists(uri)) {
-        return false;
+        return EntryStatus.Missing;
     }
 
     try {
@@ -109,28 +117,58 @@ export async function hasTranslatedContent(uri: vscode.Uri | undefined): Promise
         const content = Buffer.from(data).toString('utf8');
         const json = JSON.parse(content);
 
-        // Check if there's a text_block_list with at least one non-empty text field
+        if (!json) { return EntryStatus.Ghost; }
+
+        function hasString(obj: any): boolean {
+            if (typeof obj === 'string') {
+                return obj.trim().length > 0;
+            }
+            if (Array.isArray(obj)) {
+                return obj.some(hasString);
+            }
+            if (obj && typeof obj === 'object') {
+                return Object.values(obj).some(hasString);
+            }
+            return false;
+        }
+
+        // Specific check for Story/Race/Lyrics structures
         if (json.text_block_list && Array.isArray(json.text_block_list)) {
+            // StoryTimeline structure
             for (const block of json.text_block_list) {
                 if (block.text && typeof block.text === 'string' && block.text.trim().length > 0) {
-                    return true;
+                    return EntryStatus.Translated;
                 }
+            }
+        } else if (Array.isArray(json)) {
+            // RaceStory/Simple Array structure
+            if (json.some(hasString)) {
+                return EntryStatus.Translated;
+            }
+        } else if (typeof json === 'object') {
+            // Lyrics/MDB Flat Object structure
+            if (Object.values(json).some(hasString)) {
+                return EntryStatus.Translated;
             }
         }
 
-        return false;
-    } catch (e) {
-        // If we can't read or parse the file, assume no content
-        return false;
+        return EntryStatus.Ghost;
+    }
+    catch {
+        // If we can't read/parse, treat as ghost if exists, or missing
+        return EntryStatus.Ghost;
     }
 }
 
-export function makeActiveStatusLabel(label: string, active: boolean) {
-    if (active) {
-        return "[✔] " + label;
-    }
-    else {
-        return "[   ] " + label;
+export function makeStatusLabel(label: string, status: EntryStatus) {
+    switch (status) {
+        case EntryStatus.Translated:
+            return "[●] " + label;
+        case EntryStatus.Ghost:
+            return "[○] " + label;
+        case EntryStatus.Missing:
+        default:
+            return "[   ] " + label;
     }
 }
 
@@ -171,7 +209,7 @@ async function queryRegistry(key: string, value: string): Promise<string | undef
             });
 
             reg.on('error', () => resolve(undefined));
-        } catch (e) {
+        } catch {
             resolve(undefined);
         }
     });

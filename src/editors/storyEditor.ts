@@ -26,6 +26,10 @@ export class StoryEditorProvider extends EditorBase implements vscode.CustomText
         return vscode.window.registerCustomEditorProvider(StoryEditorProvider.viewType, provider);
     }
 
+    constructor(context: vscode.ExtensionContext) {
+        super(context);
+    }
+
     resolveCustomTextEditor(document: vscode.TextDocument, webviewPanel: vscode.WebviewPanel, _token: vscode.CancellationToken) {
         // Json document setup
         const json = new JsonDocument<StoryTimelineDataDict | null>(document.uri, null, async () => {
@@ -86,8 +90,6 @@ export class StoryEditorProvider extends EditorBase implements vscode.CustomText
                 return false;
             }
         }));
-        this.disposables.push(json);
-
         const initReadPromise = json.readTextDocument().catch(_ => { });
         json.watchTextDocument(document);
         async function getDictValueNode(id: TreeNodeId, index?: number): Promise<jsonToAst.ValueNode | undefined> {
@@ -164,9 +166,10 @@ export class StoryEditorProvider extends EditorBase implements vscode.CustomText
 
         // Init webview
         const assetInfo = StoryEditorProvider.parseFilename(document.uri);
-        this.setupWebview(webviewPanel, [
+        const panelDisposables = this.setupWebview(webviewPanel, [
             vscode.Uri.file(assetInfo.voiceCacheDir)
         ]);
+        panelDisposables.push(json);
 
         // Messaging setup
         function postMessage(message: StoryEditorControllerMessage) {
@@ -176,7 +179,7 @@ export class StoryEditorProvider extends EditorBase implements vscode.CustomText
         const dataPromise = StoryEditorProvider.generateData(assetInfo);
         let prevEditPromise: Promise<any> = Promise.resolve();
         let loadVoicePromise: Promise<{ [key: string]: string }> | undefined;
-        webviewPanel.webview.onDidReceiveMessage(async (message: EditorMessage) => {
+        panelDisposables.push(webviewPanel.webview.onDidReceiveMessage(async (message: EditorMessage) => {
             let data: InitData;
             try {
                 data = await dataPromise;
@@ -239,6 +242,7 @@ export class StoryEditorProvider extends EditorBase implements vscode.CustomText
                 }
 
                 case "setTextSlotContent": {
+                    LocalizedDataManager.autoCreatedUris.delete(document.uri.toString());
                     prevEditPromise = prevEditPromise.then(async () => {
                         const key = message.entryPath[0];
                         if (key === "title") {
@@ -368,9 +372,9 @@ export class StoryEditorProvider extends EditorBase implements vscode.CustomText
                     });
                     break;
             }
-        });
+        }));
 
-        this.disposables.push(new vscode.Disposable(() => {
+        panelDisposables.push(new vscode.Disposable(() => {
             return fs.rm(assetInfo.voiceCacheDir, { recursive: true, force: true });
         }));
     }

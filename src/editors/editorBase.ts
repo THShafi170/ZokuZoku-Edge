@@ -7,7 +7,7 @@ import HachimiIpc from '../core/hachimiIpc';
 export class EditorBase {
     static activeWebview: vscode.Webview | null = null;
     subscribedPath: TreeNodeId[] = [];
-    disposables: vscode.Disposable[] = [];
+    protected disposables: vscode.Disposable[] = [];
 
     constructor(
         protected readonly context: vscode.ExtensionContext
@@ -20,7 +20,8 @@ export class EditorBase {
     protected setupWebview(
         webviewPanel: vscode.WebviewPanel,
         extraLocalResourceRoots: vscode.Uri[] = []
-    ) {
+    ): vscode.Disposable[] {
+        const panelDisposables: vscode.Disposable[] = [];
         const webview = webviewPanel.webview;
         const gameDataDir = config().get<string>("gameDataDir");
         const customFont = config().get<string>("customFont");
@@ -80,7 +81,7 @@ export class EditorBase {
                     }));
                     break;
             }
-        });
+        }, null, panelDisposables);
 
         webviewPanel.onDidChangeViewState(action => {
             if (action.webviewPanel.active) {
@@ -88,10 +89,16 @@ export class EditorBase {
             } else if (EditorBase.activeWebview === action.webviewPanel.webview) {
                 EditorBase.activeWebview = null;
             }
-        });
+        }, null, panelDisposables);
         EditorBase.activeWebview = webview;
 
-        webviewPanel.onDidDispose(() => this.dispose(), null, this.disposables);
+        webviewPanel.onDidDispose(() => {
+            while (panelDisposables.length) {
+                panelDisposables.pop()?.dispose();
+            }
+        }, null, panelDisposables);
+
+        return panelDisposables;
     }
 
     dispose() {

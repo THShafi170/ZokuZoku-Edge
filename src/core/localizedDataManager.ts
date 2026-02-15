@@ -1,5 +1,5 @@
 import * as vscode from 'vscode';
-import { JsonDocument, JsonEdit } from './jsonDocument';
+import { JsonDocument, type JsonEdit } from './jsonDocument';
 
 export interface LocalizedDataConfig {
     localize_dict?: string,
@@ -156,6 +156,7 @@ export class LocalizedDataManager {
         return vscode.Uri.joinPath(this.dirUri, value, ...pathSegments);
     }
 
+    static autoCreatedUris = new Set<string>();
     async getPathUriAndOpenTextDocument<K extends keyof LocalizedDataConfig>(
         defaultFileContent: string, key: K, defaultValue: LocalizedDataConfig[K] & string, ...pathSegments: string[]
     ): Promise<vscode.TextDocument> {
@@ -174,21 +175,9 @@ export class LocalizedDataManager {
             document = await vscode.workspace.openTextDocument(uri);
         }
         catch {
-            try {
-                await vscode.workspace.fs.writeFile(uri, Buffer.from(defaultFileContent));
-                document = await vscode.workspace.openTextDocument(uri);
-            }
-            catch (e) {
-                const untitledUri = uri.with({ scheme: "untitled" });
-                document = await vscode.workspace.openTextDocument(untitledUri);
-                const edit = new vscode.WorkspaceEdit();
-                edit.insert(untitledUri, new vscode.Position(0, 0), defaultFileContent);
-                await vscode.workspace.applyEdit(edit);
-                // Workaround, without this the custom editor wouldn't load sometimes due to
-                // the lack of a content provider(?) caused by a race condition.
-                // The default text editor would open itself regardless. Annoying.
-                await vscode.window.showTextDocument(document);
-            }
+            await vscode.workspace.fs.writeFile(uri, Buffer.from(defaultFileContent));
+            LocalizedDataManager.autoCreatedUris.add(uri.toString());
+            document = await vscode.workspace.openTextDocument(uri);
         }
 
         return document;
